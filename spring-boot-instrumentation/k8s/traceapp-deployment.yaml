@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sb-trace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      apps: sb-trace
+  template:
+      metadata:
+        labels:
+          apps: sb-trace
+        annotations:
+          prometheus.io/scrape: "true"
+          prometheus.io/port: "9104"
+      spec:
+        restartPolicy: Always
+        volumes:
+        - name: shared-logs
+          emptyDir: {}
+        - name: fluentd-conf-cm
+          configMap:
+            name: fluentd-conf-cm
+        containers:
+        - name: fluentd
+          image: hemantdindi/fluentd-loki:latest
+          imagePullPolicy: Always
+          volumeMounts:
+          - name: shared-logs
+            mountPath: /tmp
+          - name: fluentd-conf-cm
+            mountPath: /fluentd/etc
+        - name: sb-trace-app
+          image: hemantdindi/sb-instrumentation:v2
+          imagePullPolicy: Always
+          resources:
+          volumeMounts:
+          - name: shared-logs
+            mountPath: /tmp
+          ports:
+          - name: trace-app-port
+            containerPort: 8080
+            protocol: TCP
+          - name: metrics-port
+            containerPort: 9104
+            protocol: TCP

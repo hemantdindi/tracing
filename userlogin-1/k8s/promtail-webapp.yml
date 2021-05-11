@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: promtail-webapp
+  labels:
+    app: promtail-webapp
+data:
+  promtail.yaml: |
+    server:
+      http_listen_port: 9080
+      grpc_listen_port: 0
+    target_config:
+      sync_period: 4s
+    positions:
+      filename: /tmp/positions.yaml
+
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+        batchwait: 2s
+    scrape_configs:
+    - job_name: promtail-webapp-logs
+      pipeline_stages:
+        - match:
+            selector: '{job="promtail-webapp-logs"}'
+            stages:
+              - regex:
+                  expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{1,2}\:\d{2}\:\d{2}\.\d{3})\s+(?P<level>[A-Z]{4,5})\s(?P<pid>\d)\s---\s[\s*(?P<thread>.*)]\s(?P<logger>.*)\s+\:\s(?P<message>.*)$'
+              - labels:
+                  timestamp:
+                  level:
+                  pid:
+                  thread:
+                  logger:
+                  message:
+              - timestamp:
+                  format: '2006-01-02 15:04:05.000'
+                  source: timestamp
+        # https://grafana.com/docs/loki/latest/clients/promtail/stages/multiline/
+        - multiline:
+            firstline: '^\d{4}-\d{2}-\d{2}\s\d{1,2}\:\d{2}\:\d{2}\.\d{3}'
+            max_wait_time: 3s
+      static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: promtail-webapp-logs
+          __path__: /tmp/application.log

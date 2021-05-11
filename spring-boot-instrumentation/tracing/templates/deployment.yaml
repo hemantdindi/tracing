@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tracing.fullname" . }}
+  labels:
+    {{- include "tracing.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "tracing.selectorLabels" . | nindent 6 }}
+      apps: sb-trace
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "tracing.selectorLabels" . | nindent 8 }}
+        apps: sb-trace
+    spec:
+      restartPolicy: Always
+      volumes:
+      - name: shared-logs
+        emptyDir: {}
+      - name: fluentd-conf-cm
+        configMap:
+          name: fluentd-conf-cm
+      containers:
+        - name: fluentd
+          image: hemantdindi/fluentd-loki:latest
+          imagePullPolicy: Always
+          volumeMounts:
+          - name: shared-logs
+            mountPath: /tmp
+          - name: fluentd-conf-cm
+            mountPath: /fluentd/etc
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: trace-app-port
+              containerPort: 8080
+              protocol: TCP
+            - name: metrics-port
+              containerPort: 9104
+              protocol: TCP
+          volumeMounts:
+          - name: shared-logs
+            mountPath: /tmp
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: login-webapp
+  labels:
+    apps: login-webapp
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9104"
+spec:
+  restartPolicy: Never
+  volumes:
+  - name: shared-logs
+    emptyDir: {}
+  - name: app-prop-volume
+    configMap:
+      name: app-prop
+  - name: promtail-config
+    configMap:
+      name: promtail-webapp
+  - name: fluentd-conf-cm
+    configMap:
+      name: fluentd-conf-cm
+  containers:
+  - name: promtail
+    image: grafana/promtail
+    imagePullPolicy: Always
+    args:
+    - -config.file=/etc/promtail/promtail.yaml
+    volumeMounts:
+    - name: shared-logs
+      mountPath: /tmp
+    - name: promtail-config
+      mountPath: /etc/promtail
+  - name: spring-web-app
+    image: hemantdindi/regapp:v4
+    imagePullPolicy: Always
+    envFrom:
+    - configMapRef:
+        name: mysql-conn-env
+    env:
+    - name: MYSQL_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: mysql-password
+          key: mysql-password
+    ports:
+    - name: webapp-port
+      containerPort: 6070
+      protocol: TCP
+    - name: metrics
+      containerPort: 9104
+      protocol: TCP
+    volumeMounts:
+    - name: app-prop-volume
+      mountPath: /app/config
+    - name: shared-logs
+      mountPath: /tmp
+    command: ["java"]
+    args: ["-jar", "-javaagent:/app/jar/jmx_prometheus_javaagent-0.15.0.jar=9104:/app/config/jmx-config.yaml","/app/jar/regapp-0.0.1-SNAPSHOT.jar", "--spring.config.location=/app/config/application.properties"]
+  - name: fluentd
+    image: hemantdindi/fluentd-loki:latest
+    imagePullPolicy: Always
+    volumeMounts:
+    - name: shared-logs
+      mountPath: /tmp
+    - name: fluentd-conf-cm
+      mountPath: /fluentd/etc
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: webapp-podmonitor
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      apps: login-webapp
+  podMetricsEndpoints:
+  - port: metrics

@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp-service
+  labels:
+    apps: login-webapp
+spec:
+  selector:
+    apps: login-webapp
+  ports:
+  - name: metrics
+    port: 9104
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: login-webapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      apps: login-webapp
+  template:
+      metadata:
+            labels:
+              apps: login-webapp
+            annotations:
+              prometheus.io/scrape: "true"
+              prometheus.io/port: "9104"
+      spec:
+        volumes:
+        - name: shared-logs
+          emptyDir: {}
+        - name: app-prop-volume
+          configMap:
+            name: app-prop
+        - name: promtail-config
+          configMap:
+            name: promtail-webapp
+        containers:
+        - name: promtail
+          image: grafana/promtail
+          imagePullPolicy: Always
+          args:
+          - -config.file=/etc/promtail/promtail.yaml
+          volumeMounts:
+          - name: shared-logs
+            mountPath: /tmp
+          - name: promtail-config
+            mountPath: /etc/promtail
+        - name: spring-web-app
+          image: hemantdindi/regapp:v5
+          imagePullPolicy: Always
+          envFrom:
+          - configMapRef:
+              name: mysql-tempo-env
+          env:
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysql-password
+                key: mysql-password
+          ports:
+          - name: ui
+            containerPort: 6070
+          - name: metrics
+            containerPort: 9104
+          volumeMounts:
+          - name: app-prop-volume
+            mountPath: /app/config
+          - name: shared-logs
+            mountPath: /tmp
+          command: ["java"]
+          args: ["-jar", "-javaagent:/app/jar/opentelemetry-javaagent-all.jar", "-javaagent:/app/jar/jmx_prometheus_javaagent-0.15.0.jar=9104:/app/config/jmx-config.yaml","-Dotel.trace.exporter=jaeger", "-Dotel.exporter.jaeger.endpoint=tempo:14250", "-Dotel.resource.attributes=service.name=web-instrumentation", "-Dotel.javaagent.debug=false", "-Dotel.metrics.exporter=none", "/app/jar/regapp-0.0.1-SNAPSHOT.jar", "--spring.config.location=/app/config/application.properties"]

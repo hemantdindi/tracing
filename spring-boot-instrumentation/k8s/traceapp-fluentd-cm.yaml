@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluentd-conf-cm
+  labels:
+    app: fluentd-conf-webapp
+data:
+  fluent.conf: |
+      <source>
+        @type tail
+        format none
+        path /tmp/application.log
+        pos_file /tmp/positions.pos
+        tag trace.*
+        path_key filename
+      </source>
+
+      <match trace.**>
+        @type loki
+        url "http://loki:3100"
+        flush_interval 1s
+        flush_at_shutdown true
+        buffer_chunk_limit 1m
+        extra_labels {"job":"traceapp", "agent":"traceapp"}
+        <label>
+            filename
+        </label>
+      </match>

@@ -1,0 +1,12 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: webapp-podmonitor
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      apps: login-webapp
+  endpoints:
+  - port: metrics

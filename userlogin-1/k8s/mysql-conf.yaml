@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-tempo-env
+data:
+  MYSQL_HOST: "mysql"
+  MYSQL_PORT: "3306"
+  MYSQL_DB: "webapp"
+  MYSQL_USERNAME: "root"
+
+  OTEL_EXPORTER: "otlp_span"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "tempo:55680"
+  OTEL_EXPORTER_OTLP_INSECURE: "true"
+  OTEL_RESOURCE_ATTRIBUTES: "service.name=webapp"

@@ -1,0 +1,54 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: sb-trace-podmonitor
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      apps: sb-trace
+  podMetricsEndpoints:
+  - port: metrics-port
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sb-trace
+  labels:
+    apps: sb-trace
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9104"
+spec:
+  restartPolicy: Never
+  volumes:
+  - name: shared-logs
+    emptyDir: {}
+  - name: fluentd-conf-cm
+    configMap:
+      name: fluentd-conf-cm
+  containers:
+  - name: fluentd
+    image: hemantdindi/fluentd-loki:latest
+    imagePullPolicy: Always
+    resources: 
+    volumeMounts:
+    - name: shared-logs
+      mountPath: /tmp
+    - name: fluentd-conf-cm
+      mountPath: /fluentd/etc
+  - name: sb-trace-app
+    image: hemantdindi/sb-instrumentation:v2
+    imagePullPolicy: Always
+    volumeMounts:
+    - name: shared-logs
+      mountPath: /tmp
+    ports:
+    - name: trace-app-port
+      containerPort: 8080
+      protocol: TCP
+    - name: metrics-port
+      containerPort: 9104
+      protocol: TCP

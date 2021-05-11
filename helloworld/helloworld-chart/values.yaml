@@ -1,0 +1,16 @@
+replicaCount: 1
+
+image:
+  repository: "hemantdindi/sb-helloworld"
+  tag: "v1"
+  pullPolicy: Always
+
+deployment:
+  name: sb-helloworld
+  port: 9090
+
+service:
+  name: sb-helloworld
+  type: NodePort
+  port: 9090
+  nodePort: 31000
